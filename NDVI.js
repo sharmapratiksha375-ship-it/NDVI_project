@@ -1,0 +1,99 @@
+// ==============================================
+// NDVI Analysis for Gaindakot using Sentinel-2
+// Date: 2026-03-07
+// ==============================================
+
+// Load Sentinel-2 SR Harmonized Image Collection
+var imageCollection = ee.ImageCollection("COPERNICUS/S2_SR_HARMONIZED")
+  .filterDate('2022-10-01', '2022-11-30')   // Filter by date
+  .filterBounds(table);                     // Filter by study area
+
+// Visualize raw image collection (optional)
+Map.addLayer(imageCollection, {}, 'Sentinel-2 Images');
+
+// ==========================
+// Function to calculate NDVI
+// ==========================
+var calculateNDVI = function(image) {
+  var ndvi = image.expression(
+    '(NIR - RED) / (NIR + RED)',
+    {
+      'NIR': image.select('B8'),   // Near Infrared
+      'RED': image.select('B4')    // Red
+    }
+  ).rename('NDVI')
+   .copyProperties(image, image.propertyNames());
+   
+  return ndvi;
+};
+
+// Apply NDVI function to each image
+var NDVI_Collection = imageCollection.map(calculateNDVI);
+
+// NDVI visualization parameters
+var ndviVis = {
+  min: -0.2,
+  max: 0.7,
+  palette: ['blue', 'red', 'yellow', 'green']
+};
+
+// Mean NDVI over the period
+var meanNDVI = NDVI_Collection.mean();
+
+// Clip to study area
+var meanNDVI_Clipped = meanNDVI.clip(table);
+
+// Add layers to the map
+Map.addLayer(NDVI_Collection, ndviVis, 'NDVI Collection');
+Map.addLayer(meanNDVI_Clipped, ndviVis, 'Mean NDVI');
+
+// ==========================
+// Create NDVI Legend
+// ==========================
+var legend = ui.Panel({
+  style: {
+    position: 'bottom-left',
+    padding: '8px 15px'
+  }
+});
+
+// Legend title
+var legendTitle = ui.Label({
+  value: 'NDVI Legend',
+  style: {fontWeight: 'bold', fontSize: '14px'}
+});
+legend.add(legendTitle);
+
+// Function to create a legend row
+var makeLegendRow = function(color, label) {
+  var colorBox = ui.Label({
+    style: {
+      backgroundColor: color,
+      padding: '8px',
+      margin: '0 0 4px 0'
+    }
+  });
+  
+  var description = ui.Label({
+    value: label,
+    style: {margin: '0 0 4px 6px'}
+  });
+  
+  return ui.Panel({
+    widgets: [colorBox, description],
+    layout: ui.Panel.Layout.Flow('horizontal')
+  });
+};
+
+// Add NDVI classes to legend
+legend.add(makeLegendRow('blue', 'Water / No vegetation'));
+legend.add(makeLegendRow('red', 'Bare soil / Built-up'));
+legend.add(makeLegendRow('yellow', 'Low vegetation'));
+legend.add(makeLegendRow('green', 'Healthy vegetation'));
+
+// Display legend
+Map.add(legend);
+
+// ==============================================
+// End of Script
+// =================================
